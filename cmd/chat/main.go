@@ -45,5 +45,5 @@ func main() {
 	defer gc.Close()
 
 	// Start CLI interaction
-	chat.StartChat(ctx, host, *username, gc)
+	chat.StartChat(ctx, *username, gc)
 }

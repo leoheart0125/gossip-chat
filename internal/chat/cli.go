@@ -8,28 +8,53 @@ import (
 	"gossip-chat/internal/gossip"
 
 	"github.com/c-bata/go-prompt"
-	"github.com/libp2p/go-libp2p/core/host"
 )
 
-// StartChat 啟動聊天界面
-func StartChat(ctx context.Context, h host.Host, username string, g *gossip.PubSub) {
-	// 設置消息監聽器
+// MessageListener handles incoming chat messages
+type MessageListener struct {
+	pubsub  *gossip.PubSub
+	handler func([]byte)
+}
+
+// NewMessageListener creates a new message listener
+func NewMessageListener(pubsub *gossip.PubSub) *MessageListener {
+	return &MessageListener{
+		pubsub: pubsub,
+		handler: func(data []byte) {
+			fmt.Printf("\r%s\n", string(data))
+		},
+	}
+}
+
+// Start begins listening for messages in a goroutine
+func (ml *MessageListener) Start(ctx context.Context) {
 	go func() {
 		for {
-			msg, err := g.Messages(ctx)
-			if err != nil {
-				fmt.Println("Error receiving message:", err)
+			select {
+			case <-ctx.Done():
 				return
+			default:
+				msg, err := ml.pubsub.Messages(ctx)
+				if err != nil {
+					fmt.Println("Error receiving message:", err)
+					if ctx.Err() != nil {
+						return
+					}
+					continue
+				}
+				ml.handler(msg.Data)
 			}
-
-			// 不顯示自己發送的消息
-			if msg.ReceivedFrom == h.ID() {
-				continue
-			}
-
-			fmt.Printf("\r%s: %s\n", username, string(msg.Data))
 		}
 	}()
+}
+
+// StartChat 啟動聊天界面
+func StartChat(ctx context.Context, username string, g *gossip.PubSub) {
+	// 設置消息監聽器
+
+	// Create and start message listener
+	listener := NewMessageListener(g)
+	listener.Start(ctx)
 
 	// 命令自動完成函數
 	completer := func(d prompt.Document) []prompt.Suggest {

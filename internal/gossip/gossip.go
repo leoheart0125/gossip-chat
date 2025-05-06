@@ -54,7 +54,13 @@ func (gc *PubSub) Publish(ctx context.Context, msg []byte) error {
 
 // Messages returns a channel of incoming messages
 func (gc *PubSub) Messages(ctx context.Context) (*pubsub.Message, error) {
-	return gc.sub.Next(ctx)
+	// Use a select to catch both messages and context cancellation
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+		return gc.sub.Next(ctx)
+	}
 }
 
 // Close cleanups resources
